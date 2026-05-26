@@ -979,7 +979,7 @@ function updateAcceptUI(t){
   else{btn.textContent='✋ Accept';btn.className='accept-btn';doneBtn.style.display='none';}
   const acceptors=Object.keys(ab).map(function(k){
     const entry=ab[k];
-    const u=entry&&entry.username?entry.username:k.replace(/_/g,' ');
+    const u=entry&&entry.acceptorName?entry.acceptorName:(entry&&entry.username?entry.username:k.replace(/_/g,' '));
     const bw=entry&&entry.byWhen?byWhenStr(entry.byWhen):'';
     return av(u)+' <b>'+esc(u)+'</b>'+(bw?' '+bw:'');
   });
@@ -989,8 +989,8 @@ function updateAcceptUI(t){
 
 function showAcceptSheet(){
   const t=tasks.find(x=>x.id===activeTaskId); if(!t||t.status==='done') return;
-  const key=USER.replace(/ /g,'_');
-  if(t.acceptedBy&&t.acceptedBy[key]){unAccept();return;}
+  const mySlot=localStorage.getItem('fb_slot');
+  if(t.acceptedBy&&mySlot&&t.acceptedBy[mySlot]){unAccept();return;}
   document.getElementById('accept-modal').classList.add('open');
 }
 
