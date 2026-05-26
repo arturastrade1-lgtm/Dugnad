@@ -996,9 +996,8 @@ function showAcceptSheet(){
 
 function closeAcceptModal(){
   document.getElementById('accept-modal').classList.remove('open');
-  document.getElementById('reminder-section').style.display='none';
-  document.getElementById('confirm-accept-btn').style.display='none';
-  document.getElementById('reminder-custom-sel').style.display='none';
+  var confirmBtn = document.getElementById('confirm-accept-btn');
+  if(confirmBtn) confirmBtn.style.display='none';
   document.querySelectorAll('input[name="reminder"]').forEach(function(r){if(r.value==='default')r.checked=true;});
   ['acc-today','acc-tomorrow','acc-week'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.borderColor='var(--border)';});
   pendingAcceptType=null;
@@ -1027,11 +1026,16 @@ function selectAcceptTime(type){
     else if(type==='week') desc.textContent='(Fri 8:00 & 12:30)';
     else desc.textContent='(2h before, 1 day before if far)';
   }
-  document.getElementById('reminder-section').style.display='block';
-  document.getElementById('confirm-accept-btn').style.display='block';
+  var remSec = document.getElementById('reminder-section');
+  if(remSec) remSec.style.display='block';
+  var confirmBtn = document.getElementById('confirm-accept-btn');
+  if(confirmBtn) confirmBtn.style.display='block';
   document.querySelectorAll('input[name="reminder"]').forEach(function(r){
     r.onchange=function(){
-      document.getElementById('reminder-custom-sel').style.display=r.value==='custom'?'block':'none';
+      var sel=document.getElementById('reminder-custom-sel');
+      var opts=document.getElementById('custom-reminder-opts');
+      if(sel) sel.style.display=r.value==='custom'?'block':'none';
+      if(opts) opts.style.display=r.value==='custom'?'flex':'none';
     };
   });
 }
