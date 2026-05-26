@@ -456,6 +456,7 @@ textarea.inp { resize:vertical; }
       <button class="custom-rem-btn" data-min="60" onclick="selectCustomRem(this)">1 hour</button>
       <button class="custom-rem-btn" data-min="120" onclick="selectCustomRem(this)">2 hours</button>
     </div>
+    <button id="confirm-accept-btn" onclick="confirmAccept()" style="display:none;width:100%;padding:13px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;">✅ Confirm</button>
     <button onclick="closeAcceptModal()" style="width:100%;padding:11px;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:14px;cursor:pointer;">Cancel</button>
   </div>
 </div>
@@ -994,6 +995,7 @@ function showAcceptSheet(){
 function closeAcceptModal(){
   document.getElementById('accept-modal').classList.remove('open');
   document.getElementById('reminder-section').style.display='none';
+  document.getElementById('confirm-accept-btn').style.display='none';
   document.getElementById('reminder-custom-sel').style.display='none';
   document.querySelectorAll('input[name="reminder"]').forEach(function(r){if(r.value==='default')r.checked=true;});
   ['acc-today','acc-tomorrow','acc-week'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.borderColor='var(--border)';});
@@ -1024,6 +1026,7 @@ function selectAcceptTime(type){
     else desc.textContent='(2h before, 1 day before if far)';
   }
   document.getElementById('reminder-section').style.display='block';
+  document.getElementById('confirm-accept-btn').style.display='block';
   document.querySelectorAll('input[name="reminder"]').forEach(function(r){
     r.onchange=function(){
       document.getElementById('reminder-custom-sel').style.display=r.value==='custom'?'block':'none';
