@@ -185,6 +185,8 @@ textarea.inp { resize:vertical; }
 .accept-sheet h3 { font-size:16px; font-weight:700; margin-bottom:14px; }
 .accept-option { display:block; width:100%; padding:13px; background:var(--card); border:1px solid var(--border); border-radius:10px; color:var(--text); font-size:14px; cursor:pointer; text-align:left; margin-bottom:8px; transition:border-color 0.15s; }
 .accept-option:hover { border-color:var(--accent); }
+  .custom-rem-btn { padding:7px 12px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:12px; cursor:pointer; }
+  .custom-rem-btn.active-rem { border-color:var(--accent); background:#e8a02022; color:var(--accent); font-weight:700; }
 
 /* ── Map modal ── */
 #map-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:200; flex-direction:column; }
@@ -1034,40 +1036,6 @@ function selectAcceptTime(type){
   });
 }
 
-function calcReminders(type, byWhen, reminderType, customMin) {
-  if(reminderType === 'off') return [];
-  const reminders = [];
-  const now = new Date();
-  if(reminderType === 'custom') {
-    const remTime = byWhen - customMin * 60000;
-    if(remTime > Date.now()) reminders.push({sendAt: remTime, sent: false, type: 'custom'});
-    return reminders;
-  }
-  // Default reminders per type
-  if(type === 'today') {
-    const r = new Date(); r.setHours(14,30,0,0);
-    if(r.getTime() > Date.now()) reminders.push({sendAt: r.getTime(), sent: false, type: 'today_1430'});
-  } else if(type === 'tomorrow') {
-    const r1 = new Date(); r1.setDate(r1.getDate()+1); r1.setHours(9,0,0,0);
-    const r2 = new Date(); r2.setDate(r2.getDate()+1); r2.setHours(14,30,0,0);
-    reminders.push({sendAt: r1.getTime(), sent: false, type: 'tomorrow_0900'});
-    reminders.push({sendAt: r2.getTime(), sent: false, type: 'tomorrow_1430'});
-  } else if(type === 'week') {
-    const r1 = new Date(byWhen); r1.setHours(8,0,0,0);
-    const r2 = new Date(byWhen); r2.setHours(12,30,0,0);
-    if(r1.getTime() > Date.now()) reminders.push({sendAt: r1.getTime(), sent: false, type: 'week_0800'});
-    if(r2.getTime() > Date.now()) reminders.push({sendAt: r2.getTime(), sent: false, type: 'week_1230'});
-  } else if(type === 'custom') {
-    // 2 hours before
-    const r1 = byWhen - 2*3600000;
-    if(r1 > Date.now()) reminders.push({sendAt: r1, sent: false, type: 'custom_2h'});
-    // 1 day before if more than 2 days away
-    const r2 = byWhen - 24*3600000;
-    if(byWhen - Date.now() > 2*24*3600000 && r2 > Date.now())
-      reminders.push({sendAt: r2, sent: false, type: 'custom_1d'});
-  }
-  return reminders;
-}
 
 function calcReminders(type, byWhen, reminderType, customMin) {
   if(reminderType === 'off') return [];
@@ -1102,11 +1070,12 @@ function calcReminders(type, byWhen, reminderType, customMin) {
   return reminders.filter(function(r){ return r > Date.now(); });
 }
 
-async function confirmAccept(type){
+async function confirmAccept(){
   // Read reminder settings
   const reminderType = document.querySelector('input[name="reminder"]:checked')?.value || 'default';
   const customMinBtn = document.querySelector('.custom-rem-btn.active-rem');
   const customMin = customMinBtn ? parseInt(customMinBtn.dataset.min) : 120;
+  const type = pendingAcceptType; if(!type) return;
   closeAcceptModal();
   const t=tasks.find(x=>x.id===activeTaskId); if(!t||t.status==='done') return;
   const mySlot=localStorage.getItem('fb_slot')||USER.replace(/ /g,'_');
