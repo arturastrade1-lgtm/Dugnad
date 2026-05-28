@@ -247,8 +247,21 @@ textarea.inp { resize:vertical; }
 
 <div id="lightbox" onclick="this.classList.remove('open')"><img id="lb-img" src=""/></div>
 
+<!-- ── Workspace gate ── -->
+<div id="ws-modal" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:2000;align-items:center;justify-content:center;padding:24px;">
+  <div style="width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px 24px;text-align:center;">
+    <div style="font-size:44px;margin-bottom:8px;">🤝</div>
+    <h1 style="font-size:26px;font-weight:800;color:var(--accent);margin-bottom:6px;">Dugnad</h1>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:24px;">Enter your workspace code to continue</p>
+    <input id="ws-input" class="inp" placeholder="e.g. arild" autocapitalize="off" autocomplete="off" style="text-align:center;font-size:18px;letter-spacing:1px;margin-bottom:12px;"/>
+    <p id="ws-err" style="display:none;color:var(--danger);font-size:13px;margin-bottom:12px;"></p>
+    <button id="ws-btn" class="btn-primary" style="width:100%;">Enter workspace</button>
+    <p style="font-size:12px;color:var(--muted);margin-top:16px;line-height:1.5;">Don't have a code? Ask your team admin or contact the person who set up Dugnad for your company.</p>
+  </div>
+</div>
+
 <!-- ── Setup ── -->
-<div id="setup">
+<div id="setup" style="display:none;">
   <div class="setup-box">
     <div class="setup-logo">
       <div class="emoji">🤝</div>
@@ -484,6 +497,8 @@ textarea.inp { resize:vertical; }
 <script>
 // ── Constants
 const DB = 'https://favor-board-default-rtdb.europe-west1.firebasedatabase.app';
+const ALLOWED_WORKSPACES = ['arild', 'test1', 'test2']; // add new company codes here
+let WORKSPACE = null; // set after workspace gate
 const CL_CLOUD = 'drvahyqmx';
 const CL_PRESET = 'favorboard';
 const ADMIN_SLOTS = ['slot_6']; // slots with admin privileges
@@ -567,10 +582,15 @@ function togglePwEye(){
 }
 
 // ── Firebase
-async function fbGet(p){try{const r=await fetch(DB+'/'+p+'.json');return r.ok?r.json():null;}catch{return null;}}
-async function fbPost(p,d){try{const r=await fetch(DB+'/'+p+'.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});return r.json();}catch{return null;}}
-async function fbPatch(p,d){try{await fetch(DB+'/'+p+'.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});}catch{}}
-async function fbDelete(p){try{await fetch(DB+'/'+p+'.json',{method:'DELETE'});}catch{}}
+// Raw helpers work at root level (used for migration)
+async function fbGetRaw(p){try{const r=await fetch(DB+'/'+p+'.json');return r.ok?r.json():null;}catch{return null;}}
+async function fbPatchRaw(p,d){try{await fetch(DB+'/'+p+'.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});}catch{}}
+// Workspace-scoped helpers - automatically prepend workspaces/{WORKSPACE}/
+function wsPath(p){ return WORKSPACE ? 'workspaces/'+WORKSPACE+'/'+p : p; }
+async function fbGet(p){try{const r=await fetch(DB+'/'+wsPath(p)+'.json');return r.ok?r.json():null;}catch{return null;}}
+async function fbPost(p,d){try{const r=await fetch(DB+'/'+wsPath(p)+'.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});return r.json();}catch{return null;}}
+async function fbPatch(p,d){try{await fetch(DB+'/'+wsPath(p)+'.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});}catch{}}
+async function fbDelete(p){try{await fetch(DB+'/'+wsPath(p)+'.json',{method:'DELETE'});}catch{}}
 
 // ── Cloudinary
 async function uploadImg(file){
@@ -701,8 +721,69 @@ document.getElementById('login-btn').onclick=async function(){
   }
 };
 
-// Auto-login - wrapped in DOMContentLoaded to ensure elements exist
+// Workspace gate then auto-login
 document.addEventListener('DOMContentLoaded', function(){
+  WORKSPACE = localStorage.getItem('fb_workspace');
+  if(!WORKSPACE || !ALLOWED_WORKSPACES.includes(WORKSPACE)){
+    showWorkspaceGate();
+    return;
+  }
+  initAppAfterWorkspace();
+});
+
+function showWorkspaceGate(){
+  const modal = document.getElementById('ws-modal');
+  document.getElementById('setup').style.display='none';
+  modal.style.display='flex';
+  const inp = document.getElementById('ws-input');
+  const btn = document.getElementById('ws-btn');
+  const err = document.getElementById('ws-err');
+  inp.focus();
+  const submit = async function(){
+    err.style.display='none';
+    const code = inp.value.trim().toLowerCase();
+    if(!code){ err.textContent='Please enter a workspace code.'; err.style.display='block'; return; }
+    if(!ALLOWED_WORKSPACES.includes(code)){
+      err.textContent='Workspace "'+code+'" not found. Check the code with your admin.';
+      err.style.display='block';
+      return;
+    }
+    WORKSPACE = code;
+    localStorage.setItem('fb_workspace', code);
+    // Run migration for arild on first entry
+    if(code === 'arild'){ await migrateIfNeeded(); }
+    modal.style.display='none';
+    initAppAfterWorkspace();
+  };
+  btn.onclick = submit;
+  inp.onkeydown = function(e){ if(e.key==='Enter') submit(); };
+}
+
+async function migrateIfNeeded(){
+  // Check if workspace already has data (workspace-scoped fbGet)
+  const existing = await fbGet('tasks');
+  if(existing && Object.keys(existing).length > 0){ console.log('Workspace arild already has data, skipping migration'); return; }
+  // Copy root level data into workspace (read from root with Raw)
+  const oldTasks = await fbGetRaw('tasks');
+  const oldComments = await fbGetRaw('comments');
+  const oldSlots = await fbGetRaw('user_slots');
+  const oldSeenBy = await fbGetRaw('seen_by');
+  const oldSeen = await fbGetRaw('seen');
+  const migrationPayload = {};
+  if(oldTasks) migrationPayload.tasks = oldTasks;
+  if(oldComments) migrationPayload.comments = oldComments;
+  if(oldSlots) migrationPayload.user_slots = oldSlots;
+  if(oldSeenBy) migrationPayload.seen_by = oldSeenBy;
+  if(oldSeen) migrationPayload.seen = oldSeen;
+  if(Object.keys(migrationPayload).length > 0){
+    await fbPatchRaw('workspaces/arild', migrationPayload);
+    console.log('Migrated root data to workspaces/arild/');
+  }
+}
+
+function initAppAfterWorkspace(){
+  // Show the setup/login screen now that workspace is confirmed
+  document.getElementById('setup').style.display='flex';
   // Build empty grid immediately so something shows while loading
   buildGrid();
   // Then load real slots from Firebase
@@ -718,7 +799,7 @@ document.addEventListener('DOMContentLoaded', function(){
       localStorage.removeItem('fb_slot');
     }
   })();
-});
+}
 
 async function loginAs(name){
   USER=name;
